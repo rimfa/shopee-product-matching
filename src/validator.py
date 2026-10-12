@@ -1,8 +1,17 @@
 import numpy as np
-from sklearn.neighbors import NearestNeighbors
 
 def calculate_f1(target, preds):
-    target_matches = set(target.split())
+    """
+Calculate the F1 score for a single query.
+
+Args:
+    target: Iterable of ground-truth posting IDs.
+    preds: Iterable of predicted posting IDs.
+
+Returns:
+    float: F1 score between 0.0 and 1.0.
+"""
+    target_matches = set(target)
     pred_matches = set(preds)
 
     common = target_matches & pred_matches
@@ -15,37 +24,28 @@ def calculate_f1(target, preds):
     f1 = 2 * (precision * recall) / (precision + recall)
     return f1
 
-def multimodal(query_df, query_hash, query_tfidf, gallery_hash, gallery_tfidf, gallery_df):
-    res = []
+def evaluate_predictions(val_df, preds):
+    """
+Evaluate retrieval predictions using mean F1 score.
 
-    gallery_post_ids = gallery_df['posting_id'].values
-    max_bits = 9
+Computes the F1 score for each validation query and returns
+the average score across all validation samples.
 
-    hash_knn = NearestNeighbors(metric='hamming')
-    hash_knn.fit(gallery_hash)
-    hash_dist, hash_idxs = hash_knn.radius_neighbors(query_hash, radius=max_bits/64)
+Args:
+    val_df: Validation DataFrame containing:
+        - posting_id: Unique identifier of each query.
+        - target_matches: List of ground-truth posting IDs.
+    preds: Dictionary mapping query IDs to sets of predicted
+        posting IDs, produced by multimodal_fusion().
 
-    tfidf_knn = NearestNeighbors(metric='cosine')
-    tfidf_knn.fit(gallery_tfidf)
-    tfidf_dist, tfidf_idxs = tfidf_knn.kneighbors(query_tfidf, n_neighbors=50)
+Returns:
+    float: Mean F1 score across all validation queries.
+"""
+    f1_scores = []
+    for row in val_df.itertuples(index=False):
+        id = row.posting_id
+        target = row.target_matches
+        f1 = calculate_f1(target, preds[id])
+        f1_scores.append(f1)
 
-    thresholds = np.arange(0.1, 0.4, 0.03)
-
-    for bit in range(4, max_bits+1):
-        for t in thresholds:
-            f1_scores = []
-
-            for i in range(len(query_df)):
-                h_ind = hash_idxs[i][hash_dist[i] <= bit/64]
-                img_neighb = gallery_post_ids[h_ind]
-
-                tfidf_ind = tfidf_idxs[i][tfidf_dist[i] <= t]
-                txt_neighb = gallery_post_ids[tfidf_ind]
-
-                preds = set(txt_neighb) | set(img_neighb)
-                f1_scores.append(calculate_f1(query_df['target_matches'].iloc[i], preds))
-
-            mean_f1 = np.mean(f1_scores)
-            res.append([bit, round(t, 4), round(mean_f1, 4)])
-
-    return res
+    return np.mean(f1_scores)

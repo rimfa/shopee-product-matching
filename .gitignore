@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/checkpoints.ipynb
+
+# Local datasets and artifacts
+debug_data/
+*.npz
+
+# macOS
+.DS_Store
